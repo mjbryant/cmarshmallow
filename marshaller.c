@@ -1,5 +1,15 @@
 #include <Python.h>
 
+/**
+ * Replacement for marshmallow's Marshaller that will hopefully greatly speed
+ * up dumping objects.
+ *
+ * Things left to do, or at least research:
+ * - Reference counting
+ * - Memory management
+ * - Error handling
+ */
+
 static PyObject *
 get_value_from_object(PyObject *key, PyObject *obj, PyObject *default_obj)
 {
@@ -14,6 +24,7 @@ get_value_from_object(PyObject *key, PyObject *obj, PyObject *default_obj)
             return result;
         }
     } else if (PyUnicode_CheckExact(key)) {
+        // Low-priority: can we rewrite this using Daniel's approach to be faster?
         PyObject *SEPARATOR = PyUnicode_FromString(".");
         PyObject* keys = PyUnicode_Split(key, SEPARATOR, -1);
         PyObject* prev_obj = obj;
@@ -38,41 +49,14 @@ get_value_from_object(PyObject *key, PyObject *obj, PyObject *default_obj)
         return prev_obj;
     }
 
+    // This should probably be an error or NULL or something.
     Py_RETURN_NONE;
 }
 
-// Get the value of an attribute from an arbitrary python object
-// If the key is an int, try to do a dict lookup on `obj`, otherwise default
-// Otherwise, the key should be a string, and we should split the key on '.'
-// and recursively get the value until we get the last part of the split.
-// For example, if the key is 'a.b.c', we'd call:
-//  get_value('b.c', get_value('a', obj))
+// Marshal a single python object into a single python dict
 static PyObject *
-marshaller_get_value_from_object(PyObject *self, PyObject *args)
+marshal_one(PyObject *obj, PyObject *fields)
 {
-    PyObject* obj;
-    PyObject* default_obj;
-    PyObject* key;
-    if (!PyArg_ParseTuple(args, "OOO", &key, &obj, &default_obj))
-        return NULL;
-
-    return get_value_from_object(key, obj, default_obj);
-}
-
-// Marshal a python object into a python dict.
-// Marshalling involves taking in the obj to be marshalled and a map of
-// attr_name -> field objects. For each (attr, field) pair, the marshaller
-// attempts to pull the named attribute off obj, then calls field._serialize
-// to get the result to include in the result dict.
-static PyObject *
-marshaller_marshal(PyObject *self, PyObject *args)
-{
-    PyObject *obj;
-    PyObject *fields;
-    int *many;
-    if (!PyArg_ParseTuple(args, "OOp", &obj, &fields, &many))
-        return NULL;
-
     PyObject *result = PyDict_New();
     // So I don't have to figure out how to pull default yet
     PyObject *sentinel_default = PyDict_New();
@@ -97,21 +81,35 @@ marshaller_marshal(PyObject *self, PyObject *args)
     return result;
 }
 
+
+// Marshal a python object into a python dict.
+// Marshalling involves taking in the obj to be marshalled and a map of
+// attr_name -> field objects. For each (attr, field) pair, the marshaller
+// attempts to pull the named attribute off obj, then calls field._serialize
+// to get the result to include in the result dict.
 static PyObject *
-marshaller_call_object(PyObject *self, PyObject *args)
+marshaller_marshal(PyObject *self, PyObject *args)
 {
     PyObject *obj;
-    PyObject *call_obj;
-    if (!PyArg_ParseTuple(args, "OO", &obj, &call_obj))
+    PyObject *fields;
+    int *many;
+    if (!PyArg_ParseTuple(args, "OOp", &obj, &fields, &many))
         return NULL;
-    PyObject *result = PyObject_CallFunctionObjArgs(obj, call_obj, NULL);
-    return result;
+
+    if (many) {
+        Py_ssize_t length = PyList_Size(obj);
+        PyObject *ret = PyList_New(length);
+        for (Py_ssize_t index = 0; index < length; index++) {
+            PyList_SetItem(ret, index, marshal_one(PyList_GetItem(obj, index), fields));
+        }
+        return ret;
+    } else {
+        return marshal_one(obj, fields);
+    }
 }
 
 static PyMethodDef MarshallerMethods[] = {
     {"marshal",  marshaller_marshal, METH_VARARGS, "Marshal"},
-    {"get_value", marshaller_get_value_from_object, METH_VARARGS, "Get value"},
-    {"call_object", marshaller_call_object, METH_VARARGS, "Call object"},
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 

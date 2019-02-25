@@ -21,6 +21,8 @@ from marshmallow.decorators import (PRE_DUMP, POST_DUMP, PRE_LOAD, POST_LOAD,
                                     VALIDATES, VALIDATES_SCHEMA)
 from marshmallow.utils import missing
 
+import marshaller
+
 
 #: Return type of :meth:`Schema.dump` including serialized data and errors
 MarshalResult = namedtuple('MarshalResult', ['data', 'errors'])
@@ -493,15 +495,15 @@ class BaseSchema(base.SchemaABC):
                         self._types_seen.add(obj_type)
 
             try:
-                preresult = marshal(
+                preresult = marshaller.marshal(
                     processed_obj,
                     self.fields,
-                    many=many,
-                    # TODO: Remove self.__accessor__ in a later release
-                    accessor=self.get_attribute or self.__accessor__,
-                    dict_class=self.dict_class,
-                    index_errors=self.opts.index_errors,
-                    **kwargs
+                    many,
+                    ## TODO: Remove self.__accessor__ in a later release
+                    #accessor=self.get_attribute or self.__accessor__,
+                    #dict_class=self.dict_class,
+                    #index_errors=self.opts.index_errors,
+                    #**kwargs
                 )
             except ValidationError as error:
                 errors = marshal.errors
