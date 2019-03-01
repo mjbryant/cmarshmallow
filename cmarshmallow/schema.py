@@ -466,6 +466,7 @@ class BaseSchema(base.SchemaABC):
 
         .. versionadded:: 1.0.0
         """
+        marshal = marshalling.Marshaller(self.prefix)
         errors = {}
         many = self.many if many is None else bool(many)
         if many and utils.is_iterable_but_not_string(obj):
@@ -493,16 +494,14 @@ class BaseSchema(base.SchemaABC):
                         self._types_seen.add(obj_type)
 
             try:
-                preresult, errors = marshaller.marshal(
+                preresult = marshal(
                     processed_obj,
                     self.fields,
                     many,
-                    ValidationError,
-                    ## TODO: Remove self.__accessor__ in a later release
-                    #accessor=self.get_attribute or self.__accessor__,
-                    #dict_class=self.dict_class,
-                    #index_errors=self.opts.index_errors,
-                    #**kwargs
+                    accessor=self.get_attribute or self.__accessor__,
+                    dict_class=self.dict_class,
+                    index_errors=self.opts.index_errors,
+                    **kwargs
                 )
             except ValidationError as error:
                 errors = marshal.errors

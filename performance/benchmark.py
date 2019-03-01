@@ -11,7 +11,7 @@ import gc
 import timeit
 import time
 
-from marshmallow import Schema, fields, ValidationError, pre_load
+from cmarshmallow import Schema, fields, ValidationError, pre_load
 
 
 # Custom validator
