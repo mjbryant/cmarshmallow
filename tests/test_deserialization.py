@@ -546,16 +546,6 @@ class TestFieldDeserialization:
             fields.Function(lambda x: None,
                             deserialize='notvalid')
 
-    def test_method_field_deserialization_is_noop_by_default(self):
-        class MiniUserSchema(Schema):
-            uppername = fields.Method('uppercase_name')
-
-            def uppercase_name(self, obj):
-                return obj.upper()
-        user = User(name='steve')
-        s = MiniUserSchema(user)
-        assert s.fields['uppername'].deserialize('steve') == 'steve'
-
     def test_deserialization_method(self):
         class MiniUserSchema(Schema):
             uppername = fields.Method('uppercase_name', deserialize='lowercase_name')

@@ -240,7 +240,6 @@ class BaseSchema(base.SchemaABC):
         data, errors = schema.dump(album)
         data  # {'release_date': '1968-12-06', 'title': 'Beggars Banquet'}
 
-    :param dict extra: A dict of extra attributes to bind to the serialized result.
     :param tuple|list only: Whitelist of fields to select when instantiating the Schema.
         If None, all fields are used.
         Nested fields can be represented with dot delimiters.
@@ -324,7 +323,7 @@ class BaseSchema(base.SchemaABC):
         """
         pass
 
-    def __init__(self, extra=None, only=None, exclude=(), prefix='', strict=None,
+    def __init__(self, only=None, exclude=(), prefix='', strict=None,
                  many=False, context=None, load_only=(), dump_only=(),
                  partial=False):
         # copy declared fields from metaclass
@@ -340,13 +339,6 @@ class BaseSchema(base.SchemaABC):
         self.partial = partial
         #: Dictionary mapping field_names -> :class:`Field` objects
         self.fields = self.dict_class()
-        if extra:
-            warnings.warn(
-                'The `extra` argument is deprecated. Use a post_dump '
-                'method to add additional data instead.',
-                DeprecationWarning
-            )
-        self.extra = extra
         self.context = context or {}
         self._normalize_nested_options()
         self._types_seen = set()
@@ -358,12 +350,7 @@ class BaseSchema(base.SchemaABC):
         )
 
     def _postprocess(self, data, many, obj):
-        if self.extra:
-            if many:
-                for each in data:
-                    each.update(self.extra)
-            else:
-                data.update(self.extra)
+        # TODO remove this method since it's a no-op now that extra is removed
         return data
 
     @property
