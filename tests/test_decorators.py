@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from marshmallow import (
+from cmarshmallow import (
     Schema,
     fields,
     pre_dump,
@@ -11,9 +11,6 @@ from marshmallow import (
     validates,
     validates_schema,
     ValidationError,
-    EXCLUDE,
-    INCLUDE,
-    RAISE,
 )
 
 
@@ -25,25 +22,24 @@ def test_decorated_processors():
 
         value = fields.Integer(as_string=True)
 
-        # Implicit default raw, pre dump, static method.
+        # Implicit default raw, pre dump, static method, return modified item.
         @pre_dump
         def increment_value(self, item):
             item['value'] += 1
             return item
 
-        # Implicit default raw, post dump, class method.
+        # Implicit default raw, post dump, class method, modify in place.
         @post_dump
         def add_tag(self, item):
             item['value'] = self.TAG + item['value']
-            return item
 
-        # Explicitly raw, post dump, instance method.
+        # Explicitly raw, post dump, instance method, return modified item.
         @post_dump(pass_many=True)
         def add_envelope(self, data, many):
             key = self.get_envelope_key(many)
             return {key: data}
 
-        # Explicitly raw, pre load, instance method.
+        # Explicitly raw, pre load, instance method, return modified item.
         @pre_load(pass_many=True)
         def remove_envelope(self, data, many):
             key = self.get_envelope_key(many)
@@ -53,17 +49,15 @@ def test_decorated_processors():
         def get_envelope_key(many):
             return 'data' if many else 'datum'
 
-        # Explicitly not raw, pre load, instance method.
+        # Explicitly not raw, pre load, instance method, modify in place.
         @pre_load(pass_many=False)
         def remove_tag(self, item):
             item['value'] = item['value'][len(self.TAG):]
-            return item
 
-        # Explicit default raw, post load, instance method.
+        # Explicit default raw, post load, instance method, modify in place.
         @post_load()
         def decrement_value(self, item):
             item['value'] -= 1
-            return item
 
     schema = ExampleSchema()
 
@@ -71,55 +65,19 @@ def test_decorated_processors():
     make_item = lambda: {'value': 3}
     make_items = lambda: [make_item(), {'value': 5}]
 
-    item_dumped = schema.dump(make_item())
+    item_dumped = schema.dump(make_item()).data
     assert item_dumped == {'datum': {'value': 'TAG4'}}
-    item_loaded = schema.load(item_dumped)
+    item_loaded = schema.load(item_dumped).data
     assert item_loaded == make_item()
 
-    items_dumped = schema.dump(make_items(), many=True)
+    items_dumped = schema.dump(make_items(), many=True).data
     assert items_dumped == {'data': [{'value': 'TAG4'}, {'value': 'TAG6'}]}
-    items_loaded = schema.load(items_dumped, many=True)
+    items_loaded = schema.load(items_dumped, many=True).data
     assert items_loaded == make_items()
-
-
-# Regression test for https://github.com/marshmallow-code/marshmallow/issues/347
-@pytest.mark.parametrize('unknown', (EXCLUDE, INCLUDE, RAISE))
-def test_decorated_processor_returning_none(unknown):
-    class PostSchema(Schema):
-        value = fields.Integer()
-
-        @post_load
-        def load_none(self, item):
-            return None
-
-        @post_dump
-        def dump_none(self, item):
-            return None
-
-    class PreSchema(Schema):
-        value = fields.Integer()
-
-        @pre_load
-        def load_none(self, item):
-            return None
-
-        @pre_dump
-        def dump_none(self, item):
-            return None
-
-    schema = PostSchema(unknown=unknown)
-    assert schema.dump({'value': 3}) is None
-    assert schema.load({'value': 3}) is None
-    schema = PreSchema(unknown=unknown)
-    assert schema.dump({'value': 3}) == {}
-    with pytest.raises(ValidationError) as excinfo:
-        schema.load({'value': 3})
-    assert excinfo.value.messages == {'_schema': ['Invalid input type.']}
-
 
 class TestPassOriginal:
 
-    def test_pass_original_single(self):
+    def test_pass_original_single_no_mutation(self):
         class MySchema(Schema):
             foo = fields.Field()
 
@@ -135,16 +93,29 @@ class TestPassOriginal:
                 ret['_post_dump'] = obj['sentinel']
                 return ret
 
-        schema = MySchema(unknown=EXCLUDE)
+        schema = MySchema()
         datum = {'foo': 42, 'sentinel': 24}
-        item_loaded = schema.load(datum)
+        item_loaded = schema.load(datum).data
         assert item_loaded['foo'] == 42
         assert item_loaded['_post_load'] == 24
 
-        item_dumped = schema.dump(datum)
+        item_dumped = schema.dump(datum).data
 
         assert item_dumped['foo'] == 42
         assert item_dumped['_post_dump'] == 24
+
+    def test_pass_original_single_with_mutation(self):
+        class MySchema(Schema):
+            foo = fields.Field()
+
+            @post_load(pass_original=True)
+            def post_load(self, data, input_data):
+                data['_post_load'] = input_data['post_load']
+
+        schema = MySchema()
+        item_loaded = schema.load({'foo': 42, 'post_load': 24}).data
+        assert item_loaded['foo'] == 42
+        assert item_loaded['_post_load'] == 24
 
     def test_pass_original_many(self):
         class MySchema(Schema):
@@ -174,9 +145,9 @@ class TestPassOriginal:
                     ret['_post_dump'] = original['sentinel']
                 return ret
 
-        schema = MySchema(unknown=EXCLUDE)
+        schema = MySchema()
         data = [{'foo': 42, 'sentinel': 24}, {'foo': 424, 'sentinel': 242}]
-        items_loaded = schema.load(data, many=True)
+        items_loaded = schema.load(data, many=True).data
         assert items_loaded == [
             {'foo': 42, '_post_load': 24},
             {'foo': 424, '_post_load': 242},
@@ -184,7 +155,7 @@ class TestPassOriginal:
         test_values = [e['_post_load'] for e in items_loaded]
         assert test_values == [24, 242]
 
-        items_dumped = schema.dump(data, many=True)
+        items_dumped = schema.dump(data, many=True).data
         assert items_dumped == [
             {'foo': 42, '_post_dump': 24},
             {'foo': 424, '_post_dump': 242},
@@ -193,10 +164,10 @@ class TestPassOriginal:
         # Also check load/dump of single item
 
         datum = {'foo': 42, 'sentinel': 24}
-        item_loaded = schema.load(datum, many=False)
+        item_loaded = schema.load(datum, many=False).data
         assert item_loaded == {'foo': 42, '_post_load': 24}
 
-        item_dumped = schema.dump(datum, many=False)
+        item_dumped = schema.dump(datum, many=False).data
         assert item_dumped == {'foo': 42, '_post_dump': 24}
 
 def test_decorated_processor_inheritance():
@@ -226,17 +197,17 @@ def test_decorated_processor_inheritance():
 
         deleted = None
 
-    parent_dumped = ParentSchema().dump({})
+    parent_dumped = ParentSchema().dump({}).data
     assert parent_dumped == {
         'inherited': 'inherited',
         'overridden': 'base',
-        'deleted': 'retained',
+        'deleted': 'retained'
     }
 
-    child_dumped = ChildSchema().dump({})
+    child_dumped = ChildSchema().dump({}).data
     assert child_dumped == {
         'inherited': 'inherited',
-        'overridden': 'overridden',
+        'overridden': 'overridden'
     }
 
 # https://github.com/marshmallow-code/marshmallow/issues/229#issuecomment-138949436
@@ -247,13 +218,12 @@ def test_pre_dump_is_invoked_before_implicit_field_generation():
         @pre_dump
         def hook(s, data):
             data['generated_field'] = 7
-            return data
 
         class Meta:
             # Removing generated_field from here drops it from the output
             fields = ('field', 'generated_field')
 
-    assert Foo().dump({'field': 5}) == {'field': 5, 'generated_field': 7}
+    assert Foo().dump({"field": 5}).data == {'field': 5, 'generated_field': 7}
 
 
 class ValidatesSchema(Schema):
@@ -266,7 +236,7 @@ class ValidatesSchema(Schema):
 
 class TestValidatesDecorator:
 
-    def test_validates(self):
+    def test_validates_and_strict(self):
         class VSchema(Schema):
             s = fields.String()
 
@@ -275,12 +245,12 @@ class TestValidatesDecorator:
                 raise ValidationError('nope')
 
         with pytest.raises(ValidationError) as excinfo:
-            VSchema().load({'s': 'bar'})
+            VSchema(strict=True).load({'s': 'bar'})
 
         assert excinfo.value.messages == {'s': ['nope']}
 
     # Regression test for https://github.com/marshmallow-code/marshmallow/issues/350
-    def test_validates_with_attribute(self):
+    def test_validates_with_attribute_and_strict(self):
         class S1(Schema):
             s = fields.String(attribute='string_name')
 
@@ -288,11 +258,11 @@ class TestValidatesDecorator:
             def validate_string(self, data):
                 raise ValidationError('nope')
         with pytest.raises(ValidationError) as excinfo:
-            S1().load({'s': 'foo'})
+            S1(strict=True).load({'s': 'foo'})
         assert excinfo.value.messages == {'s': ['nope']}
 
         with pytest.raises(ValidationError):
-            S1(many=True).load([{'s': 'foo'}])
+            S1(strict=True, many=True).load([{'s': 'foo'}])
 
     def test_validates_decorator(self):
         schema = ValidatesSchema()
@@ -315,17 +285,11 @@ class TestValidatesDecorator:
         errors = schema.validate({})
         assert errors == {}
 
-        with pytest.raises(ValidationError) as excinfo:
-            schema.load({'foo': 41})
-        errors = excinfo.value.messages
-        result = excinfo.value.valid_data
+        result, errors = schema.load({'foo': 41})
         assert errors
         assert result == {}
 
-        with pytest.raises(ValidationError) as excinfo:
-            schema.load([{'foo': 42}, {'foo': 43}], many=True)
-        errors = excinfo.value.messages
-        result = excinfo.value.valid_data
+        result, errors = schema.load([{'foo': 42}, {'foo': 43}], many=True)
         assert len(result) == 2
         assert result[0] == {'foo': 42}
         assert result[1] == {}
@@ -372,10 +336,9 @@ class TestValidatesDecorator:
         assert len(errors['bar']) == 1
         assert errors['bar'][0] == 'Must be 2'
 
-    # Regression test for https://github.com/marshmallow-code/marshmallow/issues/748
-    def test_validates_with_data_key(self):
+    def test_validates_load_from(self):
         class BadSchema(Schema):
-            foo = fields.String(data_key='foo-name')
+            foo = fields.String(load_from='foo-name')
 
             @validates('foo')
             def validate_string(self, data):
@@ -395,10 +358,14 @@ class TestValidatesDecorator:
 
 class TestValidatesSchemaDecorator:
 
-    def test_validator_nested_many_invalid_data(self):
+    def test_validator_nested_many(self):
 
         class NestedSchema(Schema):
             foo = fields.Int(required=True)
+
+            @validates_schema
+            def validate_schema(self, data):
+                raise ValidationError('This will never work', 'foo')
 
         class MySchema(Schema):
             nested = fields.Nested(NestedSchema, required=True, many=True)
@@ -408,75 +375,8 @@ class TestValidatesSchemaDecorator:
         assert errors
         assert 'nested' in errors
         assert 0 in errors['nested']
-        assert errors['nested'][0] == {'_schema': ['Invalid input type.']}
-
-    def test_validator_nested_many_schema_error(self):
-
-        class NestedSchema(Schema):
-            foo = fields.Int(required=True)
-
-            @validates_schema
-            def validate_schema(self, data):
-                raise ValidationError('This will never work.')
-
-        class MySchema(Schema):
-            nested = fields.Nested(NestedSchema, required=True, many=True)
-
-        schema = MySchema()
-        errors = schema.validate({'nested': [{'foo': 1}]})
-        assert errors
-        assert 'nested' in errors
-        assert 0 in errors['nested']
-        assert errors['nested'][0] == {'_schema': ['This will never work.']}
-
-    def test_validator_nested_many_field_error(self):
-
-        class NestedSchema(Schema):
-            foo = fields.Int(required=True)
-
-            @validates_schema
-            def validate_schema(self, data):
-                raise ValidationError('This will never work.', 'foo')
-
-        class MySchema(Schema):
-            nested = fields.Nested(NestedSchema, required=True, many=True)
-
-        schema = MySchema()
-        errors = schema.validate({'nested': [{'foo': 1}]})
-        assert errors
-        assert 'nested' in errors
-        assert 0 in errors['nested']
-        assert errors['nested'][0] == {'foo': ['This will never work.']}
-
-    @pytest.mark.parametrize('data', ([{'foo': 1, 'bar': 2}],))
-    @pytest.mark.parametrize(
-        'pass_many,expected_data,expected_original_data',
-        (
-            [True, [{'foo': 1}], [{'foo': 1, 'bar': 2}]],
-            [False, {'foo': 1}, {'foo': 1, 'bar': 2}],
-        ),
-    )
-    def test_validator_nested_many_pass_original_and_pass_many(
-            self, pass_many, data, expected_data, expected_original_data,
-    ):
-
-        class NestedSchema(Schema):
-            foo = fields.Int(required=True)
-
-            @validates_schema(pass_many=pass_many, pass_original=True)
-            def validate_schema(self, data, original_data, many=False):
-                assert data == expected_data
-                assert original_data == expected_original_data
-                assert many is pass_many
-                raise ValidationError('Method called')
-
-        class MySchema(Schema):
-            nested = fields.Nested(NestedSchema, required=True, many=True, unknown=EXCLUDE)
-
-        schema = MySchema()
-        errors = schema.validate({'nested': data})
-        error = errors['nested'] if pass_many else errors['nested'][0]
-        assert error['_schema'][0] == 'Method called'
+        assert '_schema' in errors['nested']
+        assert 'foo' not in errors['nested']
 
     def test_decorated_validators(self):
 
@@ -549,33 +449,6 @@ class TestValidatesSchemaDecorator:
         assert len(errors[1]['_schema']) == 1
         assert 'Must be greater than 3' in errors[0]['_schema']
 
-    def test_multiple_validators_merge_dict_errors(self):
-        class NestedSchema(Schema):
-            foo = fields.Int()
-            bar = fields.Int()
-
-        class MySchema(Schema):
-            nested = fields.Nested(NestedSchema)
-
-            @validates_schema
-            def validate_nested_foo(self, data):
-                raise ValidationError({'nested': {'foo': ['Invalid foo']}})
-
-            @validates_schema
-            def validate_nested_bar_1(self, data):
-                raise ValidationError({'nested': {'bar': ['Invalid bar 1']}})
-
-            @validates_schema
-            def validate_nested_bar_2(self, data):
-                raise ValidationError({'nested': {'bar': ['Invalid bar 2']}})
-
-        with pytest.raises(ValidationError) as excinfo:
-            MySchema().load({'nested': {'foo': 1, 'bar': 2}})
-
-        assert excinfo.value.messages == {
-            'nested': {'foo': ['Invalid foo'], 'bar': ['Invalid bar 1', 'Invalid bar 2']},
-        }
-
     def test_passing_original_data(self):
 
         class MySchema(Schema):
@@ -583,15 +456,17 @@ class TestValidatesSchemaDecorator:
             bar = fields.Int()
 
             @validates_schema(pass_original=True)
-            def validate_original_foo(self, data, original_data):
+            def validate_original(self, data, original_data):
                 if isinstance(original_data, dict) and isinstance(original_data['foo'], str):
                     raise ValidationError('foo cannot be a string')
 
+            # See https://github.com/marshmallow-code/marshmallow/issues/127
             @validates_schema(pass_many=True, pass_original=True)
-            def validate_original_bar(self, data, original_data, many):
+            def check_unknown_fields(self, data, original_data, many):
                 def check(datum):
-                    if isinstance(datum, dict) and isinstance(datum['bar'], str):
-                        raise ValidationError('bar cannot be a string')
+                    for key, val in datum.items():
+                        if key not in self.fields:
+                            raise ValidationError({'code': 'invalid_field'})
                 if many:
                     for each in original_data:
                         check(each)
@@ -599,52 +474,40 @@ class TestValidatesSchemaDecorator:
                     check(original_data)
 
         schema = MySchema()
+        errors = schema.validate({'foo': 4, 'baz': 42})
+        assert '_schema' in errors
+        assert len(errors['_schema']) == 1
+        assert errors['_schema'][0] == {'code': 'invalid_field'}
 
-        errors = schema.validate({'foo': '4', 'bar': 12})
-        assert errors['_schema'] == ['foo cannot be a string']
-
-        errors = schema.validate({'foo': 4, 'bar': '42'})
-        assert errors['_schema'] == ['bar cannot be a string']
-
-        errors = schema.validate([{'foo': 4, 'bar': '42'}], many=True)
-        assert errors['_schema'] == ['bar cannot be a string']
-
-    def test_allow_reporting_field_errors_in_schema_validator(self):
-
-        class NestedSchema(Schema):
-            baz = fields.Int(required=True)
-
-        class MySchema(Schema):
-            foo = fields.Int(required=True)
-            bar = fields.Nested(NestedSchema, required=True)
-            bam = fields.Int(required=True)
-
-            @validates_schema(skip_on_field_errors=True)
-            def consistency_validation(self, data):
-                errors = {}
-                if data['bar']['baz'] != data['foo']:
-                    errors['bar'] = {'baz': 'Non-matching value'}
-                if data['bam'] > data['foo']:
-                    errors['bam'] = 'Value should be less than foo'
-                if errors:
-                    raise ValidationError(errors)
+        errors = schema.validate({'foo': '4'})
+        assert '_schema' in errors
+        assert len(errors['_schema']) == 1
+        assert errors['_schema'][0] == 'foo cannot be a string'
 
         schema = MySchema()
-        errors = schema.validate({'foo': 2, 'bar': {'baz': 5}, 'bam': 6})
-        assert errors['bar']['baz'] == 'Non-matching value'
-        assert errors['bam'] == 'Value should be less than foo'
+        errors = schema.validate([{'foo': 4, 'baz': 42}], many=True)
+        assert '_schema' in errors
+        assert len(errors['_schema']) == 1
+        assert errors['_schema'][0] == {'code': 'invalid_field'}
 
     # https://github.com/marshmallow-code/marshmallow/issues/273
     def test_allow_arbitrary_field_names_in_error(self):
 
         class MySchema(Schema):
+            foo = fields.Int()
+            bar = fields.Int()
 
-            @validates_schema
-            def validator(self, data):
-                raise ValidationError('Error message', 'arbitrary_key')
+            @validates_schema(pass_original=True)
+            def strict_fields(self, data, original_data):
+                for key in original_data:
+                    if key not in self.fields:
+                        raise ValidationError('Unknown field name', key)
 
-        errors = MySchema().validate({})
-        assert errors['arbitrary_key'] == ['Error message']
+        schema = MySchema()
+        errors = schema.validate({'foo': 2, 'baz': 42})
+        assert 'baz' in errors
+        assert len(errors['baz']) == 1
+        assert errors['baz'][0] == 'Unknown field name'
 
     def test_skip_on_field_errors(self):
 
@@ -695,23 +558,23 @@ def test_decorator_error_handling():
         @pre_load()
         def pre_load_error1(self, item):
             if item['foo'] != 0:
-                return item
+                return
             errors = {
-                'foo': ['preloadmsg1'],
-                'bar': ['preloadmsg2', 'preloadmsg3'],
+              'foo' : ['preloadmsg1',],
+              'bar' : ['preloadmsg2', 'preloadmsg3'],
             }
             raise ValidationError(errors)
 
         @pre_load()
         def pre_load_error2(self, item):
             if item['foo'] != 4:
-                return item
+                return
             raise ValidationError('preloadmsg1', 'foo')
 
         @pre_load()
         def pre_load_error3(self, item):
             if item['foo'] != 8:
-                return item
+                return
             raise ValidationError('preloadmsg1')
 
         @post_load()
@@ -719,8 +582,8 @@ def test_decorator_error_handling():
             if item['foo'] != 1:
                 return item
             errors = {
-                'foo': ['postloadmsg1'],
-                'bar': ['postloadmsg2', 'postloadmsg3'],
+              'foo' : ['postloadmsg1',],
+              'bar' : ['postloadmsg2', 'postloadmsg3'],
             }
             raise ValidationError(errors)
 
@@ -733,17 +596,17 @@ def test_decorator_error_handling():
         @pre_dump()
         def pre_dump_error1(self, item):
             if item['foo'] != 2:
-                return item
+                return
             errors = {
-                'foo': ['predumpmsg1'],
-                'bar': ['predumpmsg2', 'predumpmsg3'],
+              'foo' : ['predumpmsg1',],
+              'bar' : ['predumpmsg2', 'predumpmsg3'],
             }
             raise ValidationError(errors)
 
         @pre_dump()
         def pre_dump_error2(self, item):
             if item['foo'] != 6:
-                return item
+                return
             raise ValidationError('predumpmsg1', 'foo')
 
         @post_dump()
@@ -751,26 +614,25 @@ def test_decorator_error_handling():
             if item['foo'] != 3:
                 return item
             errors = {
-                'foo': ['postdumpmsg1'],
-                'bar': ['postdumpmsg2', 'postdumpmsg3'],
+              'foo' : ['postdumpmsg1',],
+              'bar' : ['postdumpmsg2', 'postdumpmsg3'],
             }
             raise ValidationError(errors)
 
         @post_dump()
         def post_dump_error2(self, item):
             if item['foo'] != 7:
-                return item
+                return
             raise ValidationError('postdumpmsg1', 'foo')
 
     def make_item(foo, bar):
-        data = schema.load({'foo': foo, 'bar': bar})
+        data, errors = schema.load({'foo' : foo, 'bar' : bar})
         assert data is not None
+        assert not errors
         return data
 
     schema = ExampleSchema()
-    with pytest.raises(ValidationError) as excinfo:
-        schema.load({'foo': 0, 'bar': 1})
-    errors = excinfo.value.messages
+    data, errors = schema.load({'foo' : 0, 'bar' : 1})
     assert 'foo' in errors
     assert len(errors['foo']) == 1
     assert errors['foo'][0] == 'preloadmsg1'
@@ -778,9 +640,7 @@ def test_decorator_error_handling():
     assert len(errors['bar']) == 2
     assert 'preloadmsg2' in errors['bar']
     assert 'preloadmsg3' in errors['bar']
-    with pytest.raises(ValidationError) as excinfo:
-        schema.load({'foo': 1, 'bar': 1})
-    errors = excinfo.value.messages
+    data, errors = schema.load({'foo' : 1, 'bar' : 1})
     assert 'foo' in errors
     assert len(errors['foo']) == 1
     assert errors['foo'][0] == 'postloadmsg1'
@@ -788,9 +648,7 @@ def test_decorator_error_handling():
     assert len(errors['bar']) == 2
     assert 'postloadmsg2' in errors['bar']
     assert 'postloadmsg3' in errors['bar']
-    with pytest.raises(ValidationError) as excinfo:
-        schema.dump(make_item(2, 1))
-    errors = excinfo.value.messages
+    data, errors = schema.dump(make_item(2, 1))
     assert 'foo' in errors
     assert len(errors['foo']) == 1
     assert errors['foo'][0] == 'predumpmsg1'
@@ -798,9 +656,7 @@ def test_decorator_error_handling():
     assert len(errors['bar']) == 2
     assert 'predumpmsg2' in errors['bar']
     assert 'predumpmsg3' in errors['bar']
-    with pytest.raises(ValidationError) as excinfo:
-        schema.dump(make_item(3, 1))
-    errors = excinfo.value.messages
+    data, errors = schema.dump(make_item(3, 1))
     assert 'foo' in errors
     assert len(errors['foo']) == 1
     assert errors['foo'][0] == 'postdumpmsg1'
@@ -808,167 +664,64 @@ def test_decorator_error_handling():
     assert len(errors['bar']) == 2
     assert 'postdumpmsg2' in errors['bar']
     assert 'postdumpmsg3' in errors['bar']
-    with pytest.raises(ValidationError) as excinfo:
-        schema.load({'foo': 4, 'bar': 1})
-    errors = excinfo.value.messages
+    data, errors = schema.load({'foo' : 4, 'bar' : 1})
     assert len(errors) == 1
     assert 'foo' in errors
     assert len(errors['foo']) == 1
     assert errors['foo'][0] == 'preloadmsg1'
-    with pytest.raises(ValidationError) as excinfo:
-        schema.load({'foo': 5, 'bar': 1})
-    errors = excinfo.value.messages
+    data, errors = schema.load({'foo' : 5, 'bar' : 1})
     assert len(errors) == 1
     assert 'foo' in errors
     assert len(errors['foo']) == 1
     assert errors['foo'][0] == 'postloadmsg1'
-    with pytest.raises(ValidationError) as excinfo:
-        schema.dump(make_item(6, 1))
-    errors = excinfo.value.messages
+    data, errors = schema.dump(make_item(6, 1))
     assert 'foo' in errors
     assert len(errors['foo']) == 1
     assert errors['foo'][0] == 'predumpmsg1'
-    with pytest.raises(ValidationError) as excinfo:
-        schema.dump(make_item(7, 1))
-    errors = excinfo.value.messages
+    data, errors = schema.dump(make_item(7, 1))
     assert 'foo' in errors
     assert len(errors['foo']) == 1
     assert errors['foo'][0] == 'postdumpmsg1'
-    with pytest.raises(ValidationError) as excinfo:
-        schema.load({'foo': 8, 'bar': 1})
-    errors = excinfo.value.messages
+    data, errors = schema.load({'foo' : 8, 'bar' : 1})
     assert len(errors) == 1
     assert '_schema' in errors
     assert len(errors['_schema']) == 1
     assert errors['_schema'][0] == 'preloadmsg1'
 
-@pytest.mark.parametrize('decorator', [pre_load, post_load])
-def test_decorator_error_handling_with_load(decorator):
+@pytest.mark.parametrize(
+    'decorator',
+    [
+        pre_load,
+        post_load,
+    ]
+)
+def test_decorator_strict_error_handling_with_load(decorator):
     class ExampleSchema(Schema):
         @decorator
         def raise_value_error(self, item):
             raise ValidationError({'foo': 'error'})
 
-    schema = ExampleSchema()
+    schema = ExampleSchema(strict=True)
     with pytest.raises(ValidationError) as exc:
         schema.load({})
     assert exc.value.messages == {'foo': 'error'}
     schema.dump(object())
 
-@pytest.mark.parametrize('decorator', [pre_load, post_load])
-def test_decorator_error_handling_with_load_dict_error(decorator):
-    class ExampleSchema(Schema):
-        @decorator
-        def raise_value_error(self, item):
-            raise ValidationError({'foo': 'error'}, 'nested_field')
-
-    schema = ExampleSchema()
-    with pytest.raises(ValidationError) as exc:
-        schema.load({})
-    assert exc.value.messages == {'nested_field': {'foo': 'error'}}
-    schema.dump(object())
-
-@pytest.mark.parametrize('decorator', [pre_dump, post_dump])
-def test_decorator_error_handling_with_dump(decorator):
+@pytest.mark.parametrize(
+    'decorator',
+    [
+        pre_dump,
+        post_dump,
+    ]
+)
+def test_decorator_strict_error_handling_with_dump(decorator):
     class ExampleSchema(Schema):
         @decorator
         def raise_value_error(self, item):
             raise ValidationError({'foo': 'error'})
 
-    schema = ExampleSchema()
+    schema = ExampleSchema(strict=True)
     with pytest.raises(ValidationError) as exc:
         schema.dump(object())
     assert exc.value.messages == {'foo': 'error'}
     schema.load({})
-
-@pytest.mark.parametrize('decorator', [pre_dump, post_dump])
-def test_decorator_error_handling_with_dump_dict_error(decorator):
-    class ExampleSchema(Schema):
-        @decorator
-        def raise_value_error(self, item):
-            raise ValidationError({'foo': 'error'}, 'nested')
-
-    schema = ExampleSchema()
-    with pytest.raises(ValidationError) as exc:
-        schema.dump(object())
-    assert exc.value.messages == {'nested': {'foo': 'error'}}
-    schema.load({})
-
-
-class Nested(object):
-    def __init__(self, foo):
-        self.foo = foo
-
-
-class Example(object):
-    def __init__(self, nested):
-        self.nested = nested
-
-
-example = Example(nested=[Nested(x) for x in range(1)])
-
-
-@pytest.mark.parametrize(
-    'data,expected_data,expected_original_data',
-    (
-        [example, {'foo': 0}, example.nested[0]],
-    ),
-)
-def test_decorator_post_dump_with_nested_pass_original_and_pass_many(
-        data, expected_data, expected_original_data,
-):
-
-    class NestedSchema(Schema):
-        foo = fields.Int(required=True)
-
-        @post_dump(pass_many=False, pass_original=True)
-        def check_pass_original_when_pass_many_false(self, data, original_data):
-            assert data == expected_data
-            assert original_data == expected_original_data
-            return data
-
-        @post_dump(pass_many=True, pass_original=True)
-        def check_pass_original_when_pass_many_true(self, data, many, original_data):
-            assert many is True
-            assert data == [expected_data]
-            assert original_data == [expected_original_data]
-            return data
-
-    class ExampleSchema(Schema):
-        nested = fields.Nested(NestedSchema, required=True, many=True)
-
-    schema = ExampleSchema()
-    assert schema.dump(data) == {'nested': [{'foo': 0}]}
-
-
-@pytest.mark.parametrize(
-    'data,expected_data,expected_original_data',
-    (
-        [{'nested': [{'foo': 0}]}, {'foo': 0}, {'foo': 0}],
-    ),
-)
-def test_decorator_post_load_with_nested_pass_original_and_pass_many(
-        data, expected_data, expected_original_data,
-):
-
-    class NestedSchema(Schema):
-        foo = fields.Int(required=True)
-
-        @post_load(pass_many=False, pass_original=True)
-        def check_pass_original_when_pass_many_false(self, data, original_data):
-            assert data == expected_data
-            assert original_data == expected_original_data
-            return data
-
-        @post_load(pass_many=True, pass_original=True)
-        def check_pass_original_when_pass_many_true(self, data, many, original_data):
-            assert many is True
-            assert data == [expected_data]
-            assert original_data == [expected_original_data]
-            return data
-
-    class ExampleSchema(Schema):
-        nested = fields.Nested(NestedSchema, required=True, many=True)
-
-    schema = ExampleSchema()
-    assert schema.load(data) == data

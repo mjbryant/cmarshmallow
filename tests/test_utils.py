@@ -5,7 +5,7 @@ from functools import partial
 
 import pytest
 
-from marshmallow import utils
+from cmarshmallow import utils
 from tests.base import (
     assert_datetime_equal,
     central,
@@ -34,7 +34,6 @@ def test_to_marshallable_type():
 def test_to_marshallable_type_none():
     assert utils.to_marshallable_type(None) is None
 
-
 PointNT = namedtuple('Point', ['x', 'y'])
 
 def test_to_marshallable_type_with_namedtuple():
@@ -48,29 +47,23 @@ class PointClass(object):
         self.x = x
         self.y = y
 
-class PointDict(dict):
-    def __init__(self, x, y):
-        super(PointDict, self).__init__({'x': x})
-        self.y = y
-
-@pytest.mark.parametrize(
-    'obj', [
-        PointNT(24, 42),
-        PointClass(24, 42),
-        PointDict(24, 42),
-        {'x': 24, 'y': 42},
-    ],
-)
+@pytest.mark.parametrize('obj', [
+    PointNT(24, 42),
+    PointClass(24, 42),
+    {'x': 24, 'y': 42}
+])
 def test_get_value_from_object(obj):
-    assert utils.get_value(obj, 'x') == 24
-    assert utils.get_value(obj, 'y') == 42
+    result = utils.get_value('x', obj)
+    assert result == 24
+    result2 = utils.get_value('y', obj)
+    assert result2 == 42
 
 def test_get_value_from_namedtuple_with_default():
     p = PointNT(x=42, y=None)
     # Default is only returned if key is not found
-    assert utils.get_value(p, 'z', default=123) == 123
+    assert utils.get_value('z', p, default=123) == 123
     # since 'y' is an attribute, None is returned instead of the default
-    assert utils.get_value(p, 'y', default=123) is None
+    assert utils.get_value('y', p, default=123) is None
 
 class Triangle(object):
     def __init__(self, p1, p2, p3):
@@ -81,24 +74,24 @@ class Triangle(object):
 
 def test_get_value_for_nested_object():
     tri = Triangle(p1=PointClass(1, 2), p2=PointNT(3, 4), p3={'x': 5, 'y': 6})
-    assert utils.get_value(tri, 'p1.x') == 1
-    assert utils.get_value(tri, 'p2.x') == 3
-    assert utils.get_value(tri, 'p3.x') == 5
+    assert utils.get_value('p1.x', tri) == 1
+    assert utils.get_value('p2.x', tri) == 3
+    assert utils.get_value('p3.x', tri) == 5
 
 # regression test for https://github.com/marshmallow-code/marshmallow/issues/62
 def test_get_value_from_dict():
     d = dict(items=['foo', 'bar'], keys=['baz', 'quux'])
-    assert utils.get_value(d, 'items') == ['foo', 'bar']
-    assert utils.get_value(d, 'keys') == ['baz', 'quux']
+    assert utils.get_value('items', d) == ['foo', 'bar']
+    assert utils.get_value('keys', d) == ['baz', 'quux']
 
 def test_get_value():
-    lst = [1, 2, 3]
-    assert utils.get_value(lst, 1) == 2
+    l = [1, 2, 3]
+    assert utils.get_value(1, l) == 2
 
     class MyInt(int):
         pass
 
-    assert utils.get_value(lst, MyInt(1)) == 2
+    assert utils.get_value(MyInt(1), l) == 2
 
 
 def test_set_value():
@@ -129,8 +122,8 @@ def test_is_keyed_tuple():
     assert utils.is_keyed_tuple(d) is False
     s = 'xy'
     assert utils.is_keyed_tuple(s) is False
-    lst = [24, 42]
-    assert utils.is_keyed_tuple(lst) is False
+    l = [24, 42]
+    assert utils.is_keyed_tuple(l) is False
 
 def test_to_marshallable_type_list():
     assert utils.to_marshallable_type(['foo', 'bar']) == ['foo', 'bar']
@@ -141,13 +134,13 @@ def test_to_marshallable_type_generator():
 
 def test_marshallable():
     class ObjContainer(object):
-        contained = {'foo': 1}
+        contained = {"foo": 1}
 
         def __marshallable__(self):
             return self.contained
 
     obj = ObjContainer()
-    assert utils.to_marshallable_type(obj) == {'foo': 1}
+    assert utils.to_marshallable_type(obj) == {"foo": 1}
 
 def test_is_collection():
     assert utils.is_collection([1, 'foo', {}]) is True
@@ -156,7 +149,7 @@ def test_is_collection():
 
 def test_rfcformat_gmt_naive():
     d = dt.datetime(2013, 11, 10, 1, 23, 45)
-    assert utils.rfcformat(d) == 'Sun, 10 Nov 2013 01:23:45 -0000'
+    assert utils.rfcformat(d) == "Sun, 10 Nov 2013 01:23:45 -0000"
 
 def test_rfcformat_central():
     d = central.localize(dt.datetime(2013, 11, 10, 1, 23, 45), is_dst=False)
@@ -164,7 +157,7 @@ def test_rfcformat_central():
 
 def test_rfcformat_central_localized():
     d = central.localize(dt.datetime(2013, 11, 10, 8, 23, 45), is_dst=False)
-    assert utils.rfcformat(d, localtime=True) == 'Sun, 10 Nov 2013 08:23:45 -0600'
+    assert utils.rfcformat(d, localtime=True) == "Sun, 10 Nov 2013 08:23:45 -0600"
 
 def test_isoformat():
     d = dt.datetime(2013, 11, 10, 1, 23, 45)
@@ -172,11 +165,18 @@ def test_isoformat():
 
 def test_isoformat_tzaware():
     d = central.localize(dt.datetime(2013, 11, 10, 1, 23, 45), is_dst=False)
-    assert utils.isoformat(d) == '2013-11-10T07:23:45+00:00'
+    assert utils.isoformat(d) == "2013-11-10T07:23:45+00:00"
 
 def test_isoformat_localtime():
     d = central.localize(dt.datetime(2013, 11, 10, 1, 23, 45), is_dst=False)
-    assert utils.isoformat(d, localtime=True) == '2013-11-10T01:23:45-06:00'
+    assert utils.isoformat(d, localtime=True) == "2013-11-10T01:23:45-06:00"
+
+def test_from_datestring():
+    d = dt.datetime.now()
+    rfc = utils.rfcformat(d)
+    iso = d.isoformat()
+    assert_date_equal(utils.from_datestring(rfc), d)
+    assert_date_equal(utils.from_datestring(iso), d)
 
 @pytest.mark.parametrize('use_dateutil', [True, False])
 def test_from_rfc(use_dateutil):
@@ -187,17 +187,17 @@ def test_from_rfc(use_dateutil):
     assert_datetime_equal(result, d)
 
 @pytest.mark.parametrize('use_dateutil', [True, False])
-def test_from_iso_datetime(use_dateutil):
+def test_from_iso(use_dateutil):
     d = dt.datetime.now()
     formatted = d.isoformat()
-    result = utils.from_iso_datetime(formatted, use_dateutil=use_dateutil)
+    result = utils.from_iso(formatted, use_dateutil=use_dateutil)
     assert type(result) == dt.datetime
     assert_datetime_equal(result, d)
 
 def test_from_iso_with_tz():
     d = central.localize(dt.datetime.now())
     formatted = d.isoformat()
-    result = utils.from_iso_datetime(formatted)
+    result = utils.from_iso(formatted)
     assert_datetime_equal(result, d)
     if utils.dateutil_available:
         # Note a naive datetime
@@ -229,7 +229,7 @@ def test_from_iso_date(use_dateutil):
     assert_date_equal(result, d)
 
 def test_get_func_args():
-    def f1(foo, bar):
+    def f1(self, foo, bar):
         pass
 
     f2 = partial(f1, 'baz')
@@ -240,4 +240,4 @@ def test_get_func_args():
     f3 = F3()
 
     for func in [f1, f2, f3]:
-        assert utils.get_func_args(func) == ['foo', 'bar']
+        assert utils.get_func_args(func) == ['self', 'foo', 'bar']

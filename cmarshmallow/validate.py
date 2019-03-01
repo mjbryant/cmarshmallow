@@ -6,8 +6,8 @@ from __future__ import unicode_literals
 import re
 from operator import attrgetter
 
-from marshmallow.compat import basestring, text_type, zip_longest
-from marshmallow.exceptions import ValidationError
+from cmarshmallow.compat import basestring, text_type, zip_longest
+from cmarshmallow.exceptions import ValidationError
 
 
 class Validator(object):
@@ -51,26 +51,22 @@ class URL(Validator):
             self._memoized = {}
 
         def _regex_generator(self, relative, require_tld):
-            return re.compile(
-                r''.join((
-                    r'^',
-                    r'(' if relative else r'',
-                    r'(?:[a-z0-9\.\-\+]*)://',  # scheme is validated separately
-                    r'(?:[^:@]+?(:[^:@]*?)?@|)',  # basic auth
-                    r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+',
-                    r'(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|',  # domain...
-                    r'localhost|',  # localhost...
-                    (
-                        r'(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.?)|'
-                        if not require_tld else r''
-                    ),  # allow dotless hostnames
-                    r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|',  # ...or ipv4
-                    r'\[[A-F0-9]*:[A-F0-9:]+\])',  # ...or ipv6
-                    r'(?::\d+)?',  # optional port
-                    r')?' if relative else r'',  # host is optional, allow for relative URLs
-                    r'(?:/?|[/?]\S+)$',
-                )), re.IGNORECASE,
-            )
+            return re.compile(r''.join((
+                r'^',
+                r'(' if relative else r'',
+                r'(?:[a-z0-9\.\-\+]*)://',  # scheme is validated separately
+                r'(?:[^:@]+?(:[^:@]*?)?@|)',  # basic auth
+                r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+',
+                r'(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|',  # domain...
+                r'localhost|',  # localhost...
+                (r'(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.?)|'
+                 if not require_tld else r''),  # allow dotless hostnames
+                r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|',  # ...or ipv4
+                r'\[?[A-F0-9]*:[A-F0-9:]+\]?)',  # ...or ipv6
+                r'(?::\d+)?',  # optional port
+                r')?' if relative else r'',  # host is optional, allow for relative URLs
+                r'(?:/?|[/?]\S+)$',
+            )), re.IGNORECASE)
 
         def __call__(self, relative, require_tld):
             key = (relative, require_tld)
@@ -127,8 +123,7 @@ class Email(Validator):
         r"(^[-!#$%&'*+/=?^`{}|~\w]+(\.[-!#$%&'*+/=?^`{}|~\w]+)*$"  # dot-atom
         # quoted-string
         r'|^"([\001-\010\013\014\016-\037!#-\[\]-\177]'
-        r'|\\[\001-\011\013\014\016-\177])*"$)', re.IGNORECASE | re.UNICODE,
-    )
+        r'|\\[\001-\011\013\014\016-\177])*"$)', re.IGNORECASE | re.UNICODE)
 
     DOMAIN_REGEX = re.compile(
         # domain
@@ -136,8 +131,7 @@ class Email(Validator):
         r'(?:[A-Z]{2,6}|[A-Z0-9-]{2,})$'
         # literal form, ipv4 address (SMTP 4.1.3)
         r'|^\[(25[0-5]|2[0-4]\d|[0-1]?\d?\d)'
-        r'(\.(25[0-5]|2[0-4]\d|[0-1]?\d?\d)){3}\]$', re.IGNORECASE | re.UNICODE,
-    )
+        r'(\.(25[0-5]|2[0-4]\d|[0-1]?\d?\d)){3}\]$', re.IGNORECASE | re.UNICODE)
 
     DOMAIN_WHITELIST = ('localhost',)
 
@@ -216,7 +210,7 @@ class Range(Validator):
         return value
 
 
-class Length(Validator):
+class Length(Range):
     """Validator which succeeds if the value passed to it has a
     length between a minimum and maximum. Uses len(), so it
     can work for strings, lists, or anything with length.
@@ -240,22 +234,18 @@ class Length(Validator):
         if equal is not None and any([min, max]):
             raise ValueError(
                 'The `equal` parameter was provided, maximum or '
-                'minimum parameter must not be provided.',
+                'minimum parameter must not be provided.'
             )
 
-        self.min = min
-        self.max = max
-        self.error = error
+        super(Length, self).__init__(min, max, error)
         self.equal = equal
 
     def _repr_args(self):
         return 'min={0!r}, max={1!r}, equal={2!r}'.format(self.min, self.max, self.equal)
 
     def _format_error(self, value, message):
-        return (self.error or message).format(
-            input=value, min=self.min, max=self.max,
-            equal=self.equal,
-        )
+        return (self.error or message).format(input=value, min=self.min, max=self.max,
+                                              equal=self.equal)
 
     def __call__(self, value):
         length = len(value)
@@ -457,18 +447,11 @@ class OneOf(Validator):
 
 class ContainsOnly(OneOf):
     """Validator which succeeds if ``value`` is a sequence and each element
-    in the sequence is also in the sequence passed as ``choices``. Empty input
-    is considered valid.
+    in the sequence is also in the sequence passed as ``choices``.
 
     :param iterable choices: Same as :class:`OneOf`.
     :param iterable labels: Same as :class:`OneOf`.
     :param str error: Same as :class:`OneOf`.
-
-    .. versionchanged:: 3.0.0b2
-        Duplicate values are considered valid.
-    .. versionchanged:: 3.0.0b2
-        Empty input is considered valid. Use `validate.Length(min=1) <marshmallow.validate.Length>`
-        to validate against empty inputs.
     """
 
     default_message = 'One or more of the choices you made was not acceptable.'
@@ -478,8 +461,19 @@ class ContainsOnly(OneOf):
         return super(ContainsOnly, self)._format_error(value_text)
 
     def __call__(self, value):
-        # We can't use set.issubset because does not handle unhashable types
+        choices = list(self.choices)
+
+        if not value and choices:
+            raise ValidationError(self._format_error(value))
+
+        # We check list.index instead of using set.issubset so that
+        # unhashable types are handled.
         for val in value:
-            if val not in self.choices:
+            try:
+                index = choices.index(val)
+            except ValueError:
                 raise ValidationError(self._format_error(value))
+            else:
+                del choices[index]
+
         return value

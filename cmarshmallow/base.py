@@ -18,10 +18,10 @@ class FieldABC(object):
     def deserialize(self, value):
         raise NotImplementedError
 
-    def _serialize(self, value, attr, obj, **kwargs):
+    def _serialize(self, value, attr, obj):
         raise NotImplementedError
 
-    def _deserialize(self, value, attr, data, **kwargs):
+    def _deserialize(self, value, attr, ob):
         raise NotImplementedError
 
     def __deepcopy__(self, memo):
@@ -32,17 +32,14 @@ class FieldABC(object):
 class SchemaABC(object):
     """Abstract base class from which all Schemas inherit."""
 
-    def dump(self, obj, many=None):
+    def dump(self, obj):
         raise NotImplementedError
 
-    def dumps(self, obj, many=None, *args, **kwargs):
+    def dumps(self, obj, *args, **kwargs):
         raise NotImplementedError
 
-    def load(self, data, many=None, partial=None, unknown=None):
+    def load(self, data):
         raise NotImplementedError
 
-    def loads(
-        self, json_data, many=None, partial=None, unknown=None,
-        **kwargs
-    ):
+    def loads(self, data):
         raise NotImplementedError

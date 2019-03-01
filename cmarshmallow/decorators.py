@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """Decorators for registering schema pre-processing and post-processing methods.
-These should be imported from the top-level `marshmallow` module.
+These should be imported from the top-level `cmarshmallow` module.
 
 Example: ::
 
-    from marshmallow import (
+    from cmarshmallow import (
         Schema, pre_load, pre_dump, post_load, validates_schema,
         validates, fields, ValidationError
     )
@@ -66,15 +66,10 @@ def validates(field_name):
 
     :param str field_name: Name of the field that the method validates.
     """
-    return set_hook(None, VALIDATES, field_name=field_name)
+    return tag_processor(VALIDATES, None, False, field_name=field_name)
 
 
-def validates_schema(
-    fn=None,
-    pass_many=False,
-    pass_original=False,
-    skip_on_field_errors=True,
-):
+def validates_schema(fn=None, pass_many=False, pass_original=False, skip_on_field_errors=False):
     """Register a schema-level validator.
 
     By default, receives a single object at a time, regardless of whether ``many=True``
@@ -86,16 +81,9 @@ def validates_schema(
 
     If ``skip_on_field_errors=True``, this validation method will be skipped whenever
     validation errors have been detected when validating fields.
-
-    .. versionchanged:: 3.0.0b1
-        ``skip_on_field_errors`` defaults to `True`.
     """
-    return set_hook(
-        fn,
-        (VALIDATES_SCHEMA, pass_many),
-        pass_original=pass_original,
-        skip_on_field_errors=skip_on_field_errors,
-    )
+    return tag_processor(VALIDATES_SCHEMA, fn, pass_many, pass_original=pass_original,
+                         skip_on_field_errors=skip_on_field_errors)
 
 
 def pre_dump(fn=None, pass_many=False):
@@ -106,7 +94,7 @@ def pre_dump(fn=None, pass_many=False):
     is passed to the `Schema`. If ``pass_many=True``, the raw data (which may be a collection)
     and the value for ``many`` is passed.
     """
-    return set_hook(fn, (PRE_DUMP, pass_many))
+    return tag_processor(PRE_DUMP, fn, pass_many)
 
 
 def post_dump(fn=None, pass_many=False, pass_original=False):
@@ -116,11 +104,8 @@ def post_dump(fn=None, pass_many=False, pass_original=False):
     By default, receives a single object at a time, transparently handling the ``many``
     argument passed to the Schema. If ``pass_many=True``, the raw data
     (which may be a collection) and the value for ``many`` is passed.
-
-    If ``pass_original=True``, the original data (before serializing) will be passed as
-    an additional argument to the method.
     """
-    return set_hook(fn, (POST_DUMP, pass_many), pass_original=pass_original)
+    return tag_processor(POST_DUMP, fn, pass_many, pass_original=pass_original)
 
 
 def pre_load(fn=None, pass_many=False):
@@ -131,7 +116,7 @@ def pre_load(fn=None, pass_many=False):
     argument passed to the Schema. If ``pass_many=True``, the raw data
     (which may be a collection) and the value for ``many`` is passed.
     """
-    return set_hook(fn, (PRE_LOAD, pass_many))
+    return tag_processor(PRE_LOAD, fn, pass_many)
 
 
 def post_load(fn=None, pass_many=False, pass_original=False):
@@ -141,18 +126,15 @@ def post_load(fn=None, pass_many=False, pass_original=False):
     By default, receives a single datum at a time, transparently handling the ``many``
     argument passed to the Schema. If ``pass_many=True``, the raw data
     (which may be a collection) and the value for ``many`` is passed.
-
-    If ``pass_original=True``, the original data (before deserializing) will be passed as
-    an additional argument to the method.
     """
-    return set_hook(fn, (POST_LOAD, pass_many), pass_original=pass_original)
+    return tag_processor(POST_LOAD, fn, pass_many, pass_original=pass_original)
 
 
-def set_hook(fn, key, **kwargs):
-    """Mark decorated function as a hook to be picked up later.
+def tag_processor(tag_name, fn, pass_many, **kwargs):
+    """Tags decorated processor function to be picked up later.
 
     .. note::
-        Currently only works with functions and instance methods. Class and
+        Currently ony works with functions and instance methods. Class and
         static methods are not supported.
 
     :return: Decorated function if supplied, else this decorator with its args
@@ -160,16 +142,23 @@ def set_hook(fn, key, **kwargs):
     """
     # Allow using this as either a decorator or a decorator factory.
     if fn is None:
-        return functools.partial(set_hook, key=key, **kwargs)
+        return functools.partial(
+            tag_processor, tag_name, pass_many=pass_many, **kwargs
+        )
 
-    # Set a __marshmallow_hook__ attribute instead of wrapping in some class,
+    # Set a marshmallow_tags attribute instead of wrapping in some class,
     # because I still want this to end up as a normal (unbound) method.
     try:
-        hook_config = fn.__marshmallow_hook__
+        marshmallow_tags = fn.__marshmallow_tags__
     except AttributeError:
-        fn.__marshmallow_hook__ = hook_config = {}
+        fn.__marshmallow_tags__ = marshmallow_tags = set()
     # Also save the kwargs for the tagged function on
-    # __marshmallow_hook__, keyed by (<tag>, <pass_many>)
-    hook_config[key] = kwargs
+    # __marshmallow_kwargs__, keyed by (<tag_name>, <pass_many>)
+    try:
+        marshmallow_kwargs = fn.__marshmallow_kwargs__
+    except AttributeError:
+        fn.__marshmallow_kwargs__ = marshmallow_kwargs = {}
+    marshmallow_tags.add((tag_name, pass_many))
+    marshmallow_kwargs[(tag_name, pass_many)] = kwargs
 
     return fn

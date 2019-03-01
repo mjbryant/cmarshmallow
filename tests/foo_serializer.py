@@ -1,4 +1,4 @@
-from marshmallow import Schema, fields
+from cmarshmallow import Schema, fields
 
 
 class FooSerializer(Schema):

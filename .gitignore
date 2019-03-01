@@ -73,3 +73,8 @@ venv
 # Other
 .directory
 *.pprof
+
+# ctags
+tags
+tags.lock
+tags.temp

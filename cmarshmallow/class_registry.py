@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""A registry of :class:`Schema <marshmallow.Schema>` classes. This allows for string
+"""A registry of :class:`Schema <cmarshmallow.Schema>` classes. This allows for string
 lookup of schemas, which may be used with
-class:`fields.Nested <marshmallow.fields.Nested>`.
+class:`fields.Nested <cmarshmallow.fields.Nested>`.
 
 .. warning::
 
@@ -10,7 +10,7 @@ class:`fields.Nested <marshmallow.fields.Nested>`.
 """
 from __future__ import unicode_literals
 
-from marshmallow.exceptions import RegistryError
+from cmarshmallow.exceptions import RegistryError
 
 # {
 #   <class_name>: <list of class objects>
@@ -62,7 +62,7 @@ def register(classname, cls):
 def get_class(classname, all=False):
     """Retrieve a class from the registry.
 
-    :raises: marshmallow.exceptions.RegistryError if the class cannot be found
+    :raises: cmarshmallow.exceptions.RegistryError if the class cannot be found
         or if there are multiple entries for the given class name.
     """
     try:

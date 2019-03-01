@@ -2,8 +2,8 @@
 
 import pytest
 
-from marshmallow import Schema, fields, class_registry
-from marshmallow.exceptions import RegistryError
+from cmarshmallow import Schema, fields, class_registry
+from cmarshmallow.exceptions import RegistryError
 
 
 def test_serializer_has_class_registry():
@@ -115,16 +115,16 @@ def test_two_way_nesting():
 
     a_serialized = ASchema().dump(a_obj)
     b_serialized = BSchema().dump(b_obj)
-    assert a_serialized['b']['id'] == b_obj.id
-    assert b_serialized['a']['id'] == a_obj.id
+    assert a_serialized.data['b']['id'] == b_obj.id
+    assert b_serialized.data['a']['id'] == a_obj.id
 
 def test_nesting_with_class_name_many():
     c_obj = C(1, bs=[B(2), B(3), B(4)])
 
     c_serialized = CSchema().dump(c_obj)
 
-    assert len(c_serialized['bs']) == len(c_obj.bs)
-    assert c_serialized['bs'][0]['id'] == c_obj.bs[0].id
+    assert len(c_serialized.data['bs']) == len(c_obj.bs)
+    assert c_serialized.data['bs'][0]['id'] == c_obj.bs[0].id
 
 def test_invalid_class_name_in_nested_field_raises_error(user):
 
@@ -174,9 +174,9 @@ def test_can_use_full_module_path_to_class():
 
     # Note: The arguments here don't matter. What matters is that no
     # error is raised
-    assert sch.dump({'foo': {'_id': 42}})
+    assert sch.dump({'foo': {'_id': 42}}).data
 
     class Schema2(Schema):
         foo = fields.Nested('tests.test_registry.FooSerializer')
     sch = Schema2()
-    assert sch.dump({'foo': {'_id': 42}})
+    assert sch.dump({'foo': {'_id': 42}}).data
