@@ -5,3 +5,4 @@
 
 ## What to cut
 * `Schema.opts.index_errors`
+* `Schema.opts.ordered`

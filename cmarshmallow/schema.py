@@ -206,7 +206,6 @@ class SchemaOpts(object):
                 UserWarning
             )
         self.ordered = getattr(meta, 'ordered', False)
-        self.index_errors = getattr(meta, 'index_errors', True)
         self.include = getattr(meta, 'include', {})
         self.load_only = getattr(meta, 'load_only', ())
         self.dump_only = getattr(meta, 'dump_only', ())
@@ -320,8 +319,6 @@ class BaseSchema(base.SchemaABC):
         - ``ordered``: If `True`, order serialization output according to the
             order in which fields were declared. Output of `Schema.dump` will be a
             `collections.OrderedDict`.
-        - ``index_errors``: If `True`, errors dictionaries will include the index
-            of invalid items in a collection.
         - ``load_only``: Tuple or list of fields to exclude from serialized results.
         - ``dump_only``: Tuple or list of fields to exclude from deserialization
         """
@@ -479,7 +476,6 @@ class BaseSchema(base.SchemaABC):
                     self.fields,
                     many,
                     dict_class=self.dict_class,
-                    index_errors=self.opts.index_errors,
                     **kwargs
                 )
             except ValidationError as error:
@@ -629,7 +625,6 @@ class BaseSchema(base.SchemaABC):
                     many=many,
                     partial=partial,
                     dict_class=self.dict_class,
-                    index_errors=self.opts.index_errors,
                 )
             except ValidationError as error:
                 result = error.data
@@ -862,7 +857,7 @@ class BaseSchema(base.SchemaABC):
                             data=value,
                             field_name=field_obj.load_from or field_name,
                             field_obj=field_obj,
-                            index=(idx if self.opts.index_errors else None)
+                            index=idx,
                         )
                         if validated_value is missing:
                             data[idx].pop(field_name, None)

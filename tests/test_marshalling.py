@@ -98,18 +98,6 @@ class TestMarshaller:
         assert 'email' in marshal.errors[1]
         assert 'email' in marshal.errors[2]
 
-    def test_doesnt_store_errors_when_index_errors_equals_false(self, marshal):
-        users = [
-            {'email': 'bar@example.com'},
-            {'email': 'foobar'},
-            {'email': 'invalid'},
-        ]
-        try:
-            marshal(users, {'email': fields.Email()}, many=True, index_errors=False)
-        except ValidationError:
-            pass
-        assert 1 not in marshal.errors
-        assert 'email' in marshal.errors
 
 class TestUnmarshaller:
 
@@ -154,19 +142,6 @@ class TestUnmarshaller:
         assert 2 in unmarshal.errors
         assert 'email' in unmarshal.errors[1]
         assert 'email' in unmarshal.errors[2]
-
-    def test_doesnt_store_errors_when_index_errors_equals_false(self, unmarshal):
-        users = [
-            {'email': 'bar@example.com'},
-            {'email': 'foobar'},
-            {'email': 'invalid'},
-        ]
-        try:
-            unmarshal(users, {'email': fields.Email()}, many=True, index_errors=False)
-        except ValidationError:
-            pass
-        assert 1 not in unmarshal.errors
-        assert 'email' in unmarshal.errors
 
     def test_deserialize(self, unmarshal):
         user_data = {
