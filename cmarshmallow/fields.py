@@ -179,6 +179,10 @@ class Field(FieldABC):
         """Return the value for a given key from an object."""
         # NOTE: Use getattr instead of direct attribute access here so that
         # subclasses aren't required to define `attribute` member
+
+        # TODO this will go away when the marshaller moves to C; in that case
+        # `attribute` gets passed directly to the marshaller to show it where
+        # to look on the object.
         attribute = getattr(self, 'attribute', None)
         check_key = attr if attribute is None else attribute
         return utils.get_value(check_key, obj, default)
@@ -236,6 +240,9 @@ class Field(FieldABC):
         :param str obj: The object to pull the key from.
         :raise ValidationError: In case of formatting problem
         """
+        # TODO a lot of this may move into the marshaller, since it's the main
+        # source of slowness, but I have to figure out what _CHECK_ATTRIBUTE
+        # means.
         if self._CHECK_ATTRIBUTE:
             value = self.get_value(attr, obj)
             if value is missing_:
@@ -326,9 +333,11 @@ class Field(FieldABC):
             ret = ret.parent
         return ret if isinstance(ret, SchemaABC) else None
 
+
 class Raw(Field):
     """Field that applies no formatting or validation."""
     pass
+
 
 class Nested(Field):
     """Allows you to nest a :class:`Schema <cmarshmallow.Schema>`
@@ -582,6 +591,7 @@ class List(Field):
 
         return result
 
+
 class String(Field):
     """A string field.
 
@@ -804,6 +814,7 @@ class Boolean(Field):
                 pass
         self.fail('invalid')
 
+
 class FormattedString(Field):
     """Interpolate other values from the object into this field. The syntax for
     the source string is the same as the string `str.format` method
@@ -973,6 +984,7 @@ class Time(Field):
             return utils.from_iso_time(value)
         except (AttributeError, TypeError, ValueError):
             self.fail('invalid')
+
 
 class Date(Field):
     """ISO8601-formatted date string.
