@@ -90,7 +90,7 @@ class Marshaller(ErrorStore):
         ErrorStore.__init__(self)
 
     def serialize(self, obj, fields_dict, many=False,
-                  accessor=None, dict_class=dict, index_errors=True, index=None):
+                  dict_class=dict, index_errors=True, index=None):
         """Takes raw data (a dict, list, or other object) and a dict of
         fields to output and serializes the data based on those fields.
 
@@ -98,7 +98,6 @@ class Marshaller(ErrorStore):
         :param dict fields_dict: Mapping of field names to :class:`Field` objects.
         :param bool many: Set to `True` if ``data`` should be serialized as
             a collection.
-        :param callable accessor: Function to use for getting values from ``obj``.
         :param type dict_class: Dictionary class used to construct the output.
         :param bool index_errors: Whether to store the index of invalid items in
             ``self.errors`` when ``many=True``.
@@ -112,7 +111,7 @@ class Marshaller(ErrorStore):
         if many and obj is not None:
             self._pending = True
             ret = [self.serialize(d, fields_dict, many=False,
-                                    dict_class=dict_class, accessor=accessor,
+                                    dict_class=dict_class,
                                     index=idx, index_errors=index_errors)
                     for idx, d in enumerate(obj)]
             self._pending = False
@@ -131,7 +130,7 @@ class Marshaller(ErrorStore):
 
             key = ''.join([self.prefix or '', field_obj.dump_to or attr_name])
 
-            getter = lambda d: field_obj.serialize(attr_name, d, accessor=accessor)
+            getter = lambda d: field_obj.serialize(attr_name, d)
             value = self.call_and_store(
                 getter_func=getter,
                 data=obj,

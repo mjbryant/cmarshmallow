@@ -266,8 +266,7 @@ class BaseSchema(base.SchemaABC):
         `__validators__`, `__preprocessors__`, and `__data_handlers__` are removed in favor of
         `cmarshmallow.decorators.validates_schema`,
         `cmarshmallow.decorators.pre_load` and `cmarshmallow.decorators.post_dump`.
-        `__accessor__` and `__error_handler__` are deprecated. Implement the
-        `handle_error` and `get_attribute` methods instead.
+        ``__error_handler__` is deprecated. Implement the `handle_error` method instead.
         """
     TYPE_MAPPING = {
         text_type: fields.String,
@@ -290,8 +289,6 @@ class BaseSchema(base.SchemaABC):
 
     #: DEPRECATED: Custom error handler function. May be `None`.
     __error_handler__ = None
-    #: DEPRECATED: Function used to get values of an object.
-    __accessor__ = None
 
     class Meta(object):
         """Options object for a Schema.
@@ -432,23 +429,6 @@ class BaseSchema(base.SchemaABC):
         cls.__error_handler__ = func
         return func
 
-    @classmethod
-    def accessor(cls, func):
-        """Decorator that registers a function for pulling values from an object
-        to serialize. The function receives the :class:`Schema` instance, the
-        ``key`` of the value to get, the ``obj`` to serialize, and an optional
-        ``default`` value.
-
-        .. deprecated:: 2.0.0
-            Set the ``error_handler`` class Meta option instead.
-        """
-        warnings.warn(
-            'Schema.accessor is deprecated. Set the accessor class Meta option '
-            'instead.', category=DeprecationWarning
-        )
-        cls.__accessor__ = func
-        return func
-
     ##### Serialization/Deserialization API #####
 
     def dump(self, obj, many=None, update_fields=True, **kwargs):
@@ -498,7 +478,6 @@ class BaseSchema(base.SchemaABC):
                     processed_obj,
                     self.fields,
                     many,
-                    accessor=self.get_attribute or self.__accessor__,
                     dict_class=self.dict_class,
                     index_errors=self.opts.index_errors,
                     **kwargs

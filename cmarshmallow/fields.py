@@ -175,14 +175,13 @@ class Field(FieldABC):
                 'error_messages={self.error_messages})>'
                 .format(ClassName=self.__class__.__name__, self=self))
 
-    def get_value(self, attr, obj, accessor=None, default=missing_):
+    def get_value(self, attr, obj, default=missing_):
         """Return the value for a given key from an object."""
         # NOTE: Use getattr instead of direct attribute access here so that
         # subclasses aren't required to define `attribute` member
         attribute = getattr(self, 'attribute', None)
-        accessor_func = accessor or utils.get_value
         check_key = attr if attribute is None else attribute
-        return accessor_func(check_key, obj, default)
+        return utils.get_value(check_key, obj, default)
 
     def _validate(self, value):
         """Perform validation on ``value``. Raise a :exc:`ValidationError` if validation
@@ -229,17 +228,16 @@ class Field(FieldABC):
             if hasattr(self, 'allow_none') and self.allow_none is not True:
                 self.fail('null')
 
-    def serialize(self, attr, obj, accessor=None):
+    def serialize(self, attr, obj):
         """Pulls the value for the given key from the object, applies the
         field's formatting and returns the result.
 
         :param str attr: The attibute or key to get from the object.
         :param str obj: The object to pull the key from.
-        :param callable accessor: Function used to pull values from ``obj``.
         :raise ValidationError: In case of formatting problem
         """
         if self._CHECK_ATTRIBUTE:
-            value = self.get_value(attr, obj, accessor=accessor)
+            value = self.get_value(attr, obj)
             if value is missing_:
                 if hasattr(self, 'default'):
                     if callable(self.default):
@@ -541,9 +539,9 @@ class List(Field):
                                            'cmarshmallow.base.FieldABC')
             self.container = cls_or_instance
 
-    def get_value(self, attr, obj, accessor=None):
+    def get_value(self, attr, obj):
         """Return the value for a given key from an object."""
-        value = super(List, self).get_value(attr, obj, accessor=accessor)
+        value = super(List, self).get_value(attr, obj)
         if self.container.attribute:
             if utils.is_collection(value):
                 return [

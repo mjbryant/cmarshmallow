@@ -406,7 +406,7 @@ class TestFieldSerialization:
         m = fields.Method()
         m.parent = Schema()
 
-        assert m.serialize('', '', '') is missing_
+        assert m.serialize('', '') is missing_
 
     def test_serialize_with_dump_to_param(self):
         class DumpToSchema(Schema):

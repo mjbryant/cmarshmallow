@@ -12,7 +12,7 @@ class FieldABC(object):
     parent = None
     name = None
 
-    def serialize(self, attr, obj, accessor=None):
+    def serialize(self, attr, obj):
         raise NotImplementedError
 
     def deserialize(self, value):
