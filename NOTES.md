@@ -5,5 +5,5 @@
 * `Schema.opts.index_errors`
 * `Schema.extra`
 
-## What to cut
+## What to maybe cut
 * `Schema.opts.ordered`
