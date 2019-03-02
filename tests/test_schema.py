@@ -1368,18 +1368,6 @@ class MySchema(Schema):
 
 class TestErrorHandler:
 
-    def test_error_handler_decorator_is_deprecated(self):
-
-        def deprecated():
-            class MySchema(Schema):
-                pass
-
-            @MySchema.error_handler
-            def f(*args, **kwargs):
-                pass
-
-        pytest.deprecated_call(deprecated)
-
     def test_dump_with_custom_error_handler(self, user):
         user.age = 'notavalidage'
         with pytest.raises(CustomError):

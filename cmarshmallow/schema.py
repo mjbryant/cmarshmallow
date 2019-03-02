@@ -260,7 +260,6 @@ class BaseSchema(base.SchemaABC):
         `__validators__`, `__preprocessors__`, and `__data_handlers__` are removed in favor of
         `cmarshmallow.decorators.validates_schema`,
         `cmarshmallow.decorators.pre_load` and `cmarshmallow.decorators.post_dump`.
-        ``__error_handler__` is deprecated. Implement the `handle_error` method instead.
         """
     TYPE_MAPPING = {
         text_type: fields.String,
@@ -280,9 +279,6 @@ class BaseSchema(base.SchemaABC):
     }
 
     OPTIONS_CLASS = SchemaOpts
-
-    #: DEPRECATED: Custom error handler function. May be `None`.
-    __error_handler__ = None
 
     class Meta(object):
         """Options object for a Schema.
@@ -372,39 +368,6 @@ class BaseSchema(base.SchemaABC):
         """
         return utils.get_value(attr, obj, default)
 
-    ##### Handler decorators (deprecated) #####
-
-    @classmethod
-    def error_handler(cls, func):
-        """Decorator that registers an error handler function for the schema.
-        The function receives the :class:`Schema` instance, a dictionary of errors,
-        and the serialized object (if serializing data) or data dictionary (if
-        deserializing data) as arguments.
-
-        Example: ::
-
-            class UserSchema(Schema):
-                email = fields.Email()
-
-            @UserSchema.error_handler
-            def handle_errors(schema, errors, obj):
-                raise ValueError('An error occurred while marshalling {}'.format(obj))
-
-            user = User(email='invalid')
-            UserSchema().dump(user)  # => raises ValueError
-            UserSchema().load({'email': 'bademail'})  # raises ValueError
-
-        .. versionadded:: 0.7.0
-        .. deprecated:: 2.0.0
-            Set the ``error_handler`` class Meta option instead.
-        """
-        warnings.warn(
-            'Schema.error_handler is deprecated. Set the error_handler class Meta option '
-            'instead.', category=DeprecationWarning
-        )
-        cls.__error_handler__ = func
-        return func
-
     ##### Serialization/Deserialization API #####
 
     def dump(self, obj, many=None, update_fields=True, **kwargs):
@@ -471,9 +434,6 @@ class BaseSchema(base.SchemaABC):
             except ValidationError as error:
                 errors = error.normalized_messages()
         if errors:
-            # TODO: Remove self.__error_handler__ in a later release
-            if self.__error_handler__ and callable(self.__error_handler__):
-                self.__error_handler__(errors, obj)
             exc = ValidationError(
                 errors,
                 field_names=marshal.error_field_names,
@@ -630,9 +590,6 @@ class BaseSchema(base.SchemaABC):
             except ValidationError as err:
                 errors = err.normalized_messages()
         if errors:
-            # TODO: Remove self.__error_handler__ in a later release
-            if self.__error_handler__ and callable(self.__error_handler__):
-                self.__error_handler__(errors, data)
             exc = ValidationError(
                 errors,
                 field_names=unmarshal.error_field_names,
