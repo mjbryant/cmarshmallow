@@ -7,7 +7,6 @@ and from primitive types.
     This module is treated as private API.
     Users should not need to use this module directly.
 """
-
 from __future__ import unicode_literals
 
 from cmarshmallow.utils import is_collection, missing, set_value

@@ -29,6 +29,7 @@ MarshalResult = namedtuple('MarshalResult', ['data', 'errors'])
 #: Return type of :meth:`Schema.load`, including deserialized data and errors
 UnmarshalResult = namedtuple('UnmarshalResult', ['data', 'errors'])
 
+
 def _get_fields(attrs, field_class, pop=False, ordered=False):
     """Get fields from a class. If ordered=True, fields will sorted by creation index.
 
@@ -49,6 +50,7 @@ def _get_fields(attrs, field_class, pop=False, ordered=False):
         )
     else:
         return fields
+
 
 # This function allows Schemas to inherit from non-Schema classes and ensures
 #   inheritance according to the MRO
@@ -199,12 +201,6 @@ class SchemaOpts(object):
         self.strict = getattr(meta, 'strict', False)
         self.dateformat = getattr(meta, 'dateformat', None)
         self.json_module = getattr(meta, 'json_module', json)
-        if hasattr(meta, 'skip_missing'):
-            warnings.warn(
-                'The skip_missing option is no longer necessary. Missing inputs passed to '
-                'Schema.dump will be excluded from the serialized output by default.',
-                UserWarning
-            )
         self.ordered = getattr(meta, 'ordered', False)
         self.include = getattr(meta, 'include', {})
         self.load_only = getattr(meta, 'load_only', ())
@@ -349,10 +345,6 @@ class BaseSchema(base.SchemaABC):
             ClassName=self.__class__.__name__, self=self
         )
 
-    def _postprocess(self, data, many, obj):
-        # TODO remove this method since it's a no-op now that extra is removed
-        return data
-
     @property
     def dict_class(self):
         return OrderedDict if self.ordered else dict
@@ -458,7 +450,7 @@ class BaseSchema(base.SchemaABC):
                         self._types_seen.add(obj_type)
 
             try:
-                preresult = marshal(
+                result = marshal(
                     processed_obj,
                     self.fields,
                     many,
@@ -467,9 +459,7 @@ class BaseSchema(base.SchemaABC):
                 )
             except ValidationError as error:
                 errors = marshal.errors
-                preresult = error.data
-
-            result = self._postprocess(preresult, many, obj=obj)
+                result = error.data
 
         if not errors and self._has_processors:
             try:

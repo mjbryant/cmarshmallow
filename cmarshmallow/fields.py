@@ -107,8 +107,8 @@ class Field(FieldABC):
         inputs are excluded from serialized output.
     """
     # Some fields, such as Method fields and Function fields, are not expected
-    #  to exists as attributes on the objects to serialize. Set this to False
-    #  for those fields
+    # to exists as attributes on the objects to serialize. Set this to False
+    # for those fields
     _CHECK_ATTRIBUTE = True
     _creation_index = 0  # Used for sorting
 
