@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 """Field classes for various types of data."""
-
 from __future__ import absolute_import, unicode_literals
 
 import copy
@@ -15,6 +14,7 @@ from cmarshmallow.utils import missing as missing_
 from cmarshmallow.compat import text_type, basestring, Mapping
 from cmarshmallow.exceptions import ValidationError
 from cmarshmallow.validate import Validator
+
 
 __all__ = [
     'Field',
@@ -567,10 +567,13 @@ class List(Field):
         self.container.name = field_name
 
     def _serialize(self, value, attr, obj):
+        # Serialize a list object
         if value is None:
             return None
         if utils.is_collection(value):
             return [self.container._serialize(each, attr, obj) for each in value]
+        # TODO remove this fallback because it's stupid. You shouldn't be able
+        # to get around actually passing a list for a List field.
         return [self.container._serialize(value, attr, obj)]
 
     def _deserialize(self, value, attr, data):
@@ -815,6 +818,7 @@ class Boolean(Field):
         self.fail('invalid')
 
 
+# TODO should remove this. It's super inefficient and complicates everything
 class FormattedString(Field):
     """Interpolate other values from the object into this field. The syntax for
     the source string is the same as the string `str.format` method
@@ -1174,7 +1178,7 @@ class Email(ValidatedField, String):
 class Method(Field):
     """A field that takes the value returned by a `Schema` method.
 
-    :param str method_name: The name of the Schema method from which
+    :param str serialize: The name of the Schema method from which
         to retrieve the value. The method must take an argument ``obj``
         (in addition to self) that is the object to be serialized.
     :param str deserialize: Optional name of the Schema method for deserializing
@@ -1183,18 +1187,11 @@ class Method(Field):
 
     .. versionchanged:: 2.0.0
         Removed optional ``context`` parameter on methods. Use ``self.context`` instead.
-    .. versionchanged:: 2.3.0
-        Deprecated ``method_name`` parameter in favor of ``serialize`` and allow
-        ``serialize`` to not be passed at all.
     """
     _CHECK_ATTRIBUTE = False
 
-    def __init__(self, serialize=None, deserialize=None, method_name=None, **kwargs):
-        if method_name is not None:
-            warnings.warn('"method_name" argument of fields.Method is deprecated. '
-                          'Use the "serialize" argument instead.', DeprecationWarning)
-
-        self.serialize_method_name = self.method_name = serialize or method_name
+    def __init__(self, serialize=None, deserialize=None, **kwargs):
+        self.serialize_method_name = serialize
         self.deserialize_method_name = deserialize
         super(Method, self).__init__(**kwargs)
 
@@ -1238,19 +1235,10 @@ class Function(Field):
         which is a dictionary of context variables passed to the deserializer.
         If no callable is provided then ```value``` will be passed through
         unchanged.
-    :param callable func: This argument is to be deprecated. It exists for
-        backwards compatiblity. Use serialize instead.
-
-    .. versionchanged:: 2.3.0
-        Deprecated ``func`` parameter in favor of ``serialize``.
     """
     _CHECK_ATTRIBUTE = False
 
-    def __init__(self, serialize=None, deserialize=None, func=None, **kwargs):
-        if func:
-            warnings.warn('"func" argument of fields.Function is deprecated. '
-                          'Use the "serialize" argument instead.', DeprecationWarning)
-            serialize = func
+    def __init__(self, serialize=None, deserialize=None, **kwargs):
         super(Function, self).__init__(**kwargs)
         self.serialize_func = self.func = serialize and utils.callable_or_raise(serialize)
         self.deserialize_func = deserialize and utils.callable_or_raise(deserialize)

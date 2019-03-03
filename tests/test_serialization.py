@@ -66,9 +66,6 @@ class TestFieldSerialization:
         field = fields.Function(serialize=lambda obj: obj.name.upper())
         assert "FOO" == field.serialize("key", user)
 
-    def test_function_field_passed_func_is_deprecated(self):
-        pytest.deprecated_call(lambda: fields.Function(func=lambda obj: obj.name.upper()))
-
     def test_function_field_passed_serialize_with_context(self, user, monkeypatch):
         class Parent(Schema):
             pass
