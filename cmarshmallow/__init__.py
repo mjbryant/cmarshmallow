@@ -13,22 +13,3 @@ from cmarshmallow.decorators import (
 )
 from cmarshmallow.utils import pprint, missing
 from cmarshmallow.exceptions import ValidationError
-
-__version__ = '2.16.3'
-__author__ = 'Steven Loria'
-__all__ = [
-    'Schema',
-    'SchemaOpts',
-    'fields',
-    'validates',
-    'validates_schema',
-    'pre_dump',
-    'post_dump',
-    'pre_load',
-    'post_load',
-    'pprint',
-    'MarshalResult',
-    'UnmarshalResult',
-    'ValidationError',
-    'missing',
-]
