@@ -12,6 +12,7 @@ import uuid
 import warnings
 import functools
 
+import marshaller
 from cmarshmallow import base, fields, utils, class_registry, marshalling
 from cmarshmallow.compat import (with_metaclass, iteritems, text_type,
                                 binary_type, Mapping, OrderedDict)
@@ -20,8 +21,6 @@ from cmarshmallow.orderedset import OrderedSet
 from cmarshmallow.decorators import (PRE_DUMP, POST_DUMP, PRE_LOAD, POST_LOAD,
                                     VALIDATES, VALIDATES_SCHEMA)
 from cmarshmallow.utils import missing
-
-# import marshaller
 
 
 #: Return type of :meth:`Schema.dump` including serialized data and errors
@@ -385,7 +384,7 @@ class BaseSchema(base.SchemaABC):
 
         .. versionadded:: 1.0.0
         """
-        marshal = marshalling.Marshaller(self.prefix)
+        # marshal = marshalling.Marshaller(self.prefix)
         errors = {}
         many = self.many if many is None else bool(many)
         if many and utils.is_iterable_but_not_string(obj):
@@ -412,17 +411,19 @@ class BaseSchema(base.SchemaABC):
                     if not isinstance(processed_obj, Mapping):
                         self._types_seen.add(obj_type)
 
-            try:
-                result = marshal(
-                    processed_obj,
-                    self.fields,
-                    many,
-                    dict_class=self.dict_class,
-                    **kwargs
-                )
-            except ValidationError as error:
-                errors = marshal.errors
-                result = error.data
+            result, errors = marshaller.marshal(
+                processed_obj,
+                self.fields,
+                many,
+                ValidationError,
+                self.prefix,
+            )
+#            except ValidationError as error:
+#                # The marshaller only raises this after marshalling all the
+#                # fields. This should not be a truly uncaught error from the
+#                # marshaller.
+#                errors = marshal.errors
+#                result = error.data
 
         if not errors and self._has_processors:
             try:
@@ -434,12 +435,17 @@ class BaseSchema(base.SchemaABC):
             except ValidationError as error:
                 errors = error.normalized_messages()
         if errors:
+            # If errors are set by the marshaller, they should always include
+            # these fields.
+            error_field_names = errors.pop('error_field_names', None)
+            error_fields = errors.pop('error_fields', None)
+            error_kwargs = errors.pop('error_kwargs', {})
             exc = ValidationError(
                 errors,
-                field_names=marshal.error_field_names,
-                fields=marshal.error_fields,
+                field_names=error_field_names,
+                fields=error_fields,
                 data=obj,
-                **marshal.error_kwargs
+                **error_kwargs
             )
             self.handle_error(exc, obj)
             if self.strict:
